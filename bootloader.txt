@@ -1,0 +1,7 @@
+bootloader lembretes:
+
+- não existe "seção de boot"
+- aplicação tmb deve ter seu proprio startup
+- _start da aplicação fica em 4 bytes do endereço inicial
+- use o registrador VTOR do Cortex-M3 para configurar corretamente o offset das interrupçoes
+
