@@ -1,0 +1,15 @@
+.{
+    .name = "app_ESPAT_exemple",
+    .version = "0.0.0",
+    .dependencies = .{
+        .ESPAT = .{
+            .url = "git+https://github.com/RecursiveError/ESPAT#19c0b0151b3e3b4805184c41be6a6d5fdc520428",
+            .hash = "12207f9a2cf304af575d12f64070b42c7d9b5b64150d172b696e16a28a837305ebea",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
