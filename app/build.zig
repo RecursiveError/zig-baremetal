@@ -20,6 +20,7 @@ pub fn build(b: *std.Build) void {
         .single_threaded = true,
         .root_source_file = b.path("src/main.zig"),
     });
+    blinky_exe.entry = .disabled;
 
     const startup = b.addObject(
         .{
@@ -31,6 +32,8 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/startup.zig"),
         },
     );
+    startup.entry = .disabled;
+
     blinky_exe.setLinkerScriptPath(b.path("stmf103.ld"));
     blinky_exe.link_gc_sections = true;
     blinky_exe.link_data_sections = true;

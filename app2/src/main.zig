@@ -2,8 +2,12 @@ const std = @import("std");
 const stm32f1xx = @import("stm32f1xx.zig");
 const cortex_m3 = @import("cortexm3.zig");
 const Driver = @import("ESPAT");
-const Client = Driver.Client;
-const EspAT = Driver.EspAT;
+
+const WiFi = Driver.WiFi;
+const Network = Driver.Network;
+const Client = Network.Client;
+const StdRunner = Driver.StandartRunner;
+
 const peripherals = stm32f1xx.devices.STM32F103.peripherals;
 const CPU_CLOCK = 8_000_000;
 
@@ -32,29 +36,40 @@ fn TX_callback(data: []const u8, _: ?*anyopaque) void {
     uart_transmite_blocking(data);
 }
 
-fn result_callback(result: Driver.ReponseEvent, cmd: Driver.Commands, user_data: ?*anyopaque) void {
-    _ = user_data;
-    _ = result;
-    _ = cmd;
-}
-
-fn WiFi_callback(event: Driver.WifiEvent, user_data: ?*anyopaque) void {
+fn WiFi_callback(event: WiFi.Event, user_data: ?*anyopaque) void {
     _ = user_data;
     _ = event;
 }
 
 //tcp server example
-var send_buffer: [2046]u8 = undefined;
+const template = "HTTP/1.1 {s}\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE html>\r\n<html lang=\"pt-BR\">\r\n<head>\r\n<meta charset=\"UTF-8\">\r\n<title>{s}</title>\r\n</head>\r\n<body><p>{s}</p></body>\r\n</html>\r\n";
+var send_buffer: [3][1024]u8 = undefined;
 fn echo_server(client: Client, user_data: ?*anyopaque) void {
     _ = user_data;
+    const id = client.id;
     switch (client.event) {
         .DataReport => |_| {
             client.accept() catch error_h();
         },
         .ReadData => |data| {
-            std.mem.copyForwards(u8, &send_buffer, data);
-            client.send(@constCast(send_buffer[0..data.len])) catch error_h();
-            //client.close() catch error_h();
+            const req = std.http.Server.Request.Head.parse(data) catch {
+                const to_send = std.fmt.bufPrint(&send_buffer[id], template, .{
+                    "400 Bad Request",
+                    "Error",
+                    "Invalid Request",
+                }) catch unreachable;
+                client.send(to_send) catch error_h();
+                client.close() catch error_h();
+                return;
+            };
+
+            const to_send = std.fmt.bufPrint(&send_buffer[id], template, .{
+                "200 OK",
+                "OK",
+                req.target,
+            }) catch unreachable;
+            client.send(to_send) catch error_h();
+            client.close() catch error_h();
         },
         else => {},
     }
@@ -76,7 +91,7 @@ fn udp_callback(client: Client, user_data: ?*anyopaque) void {
     }
 }
 
-const STA_config = Driver.WiFiSTAConfig{
+const STA_config = WiFi.STAConfig{
     .ssid = wifi_ssid,
     .pwd = wifi_password,
     .wifi_protocol = .{
@@ -88,7 +103,7 @@ const STA_config = Driver.WiFiSTAConfig{
     .wifi_ip = .{ .static = .{ .ip = "192.168.15.37" } },
 };
 
-const AP_config = Driver.WiFiAPConfig{
+const AP_config = WiFi.APConfig{
     .ssid = "banana",
     .channel = 5,
     .ecn = .OPEN,
@@ -101,7 +116,7 @@ const AP_config = Driver.WiFiAPConfig{
     .wifi_ip = .{ .DHCP = {} },
 };
 
-const config_udp = Driver.ConnectConfig{
+const config_udp = Network.ConnectConfig{
     .recv_mode = .active,
     .remote_host = "0.0.0.0",
     .remote_port = 1234,
@@ -113,7 +128,7 @@ const config_udp = Driver.ConnectConfig{
     },
 };
 
-const server_config = Driver.ServerConfig{
+const server_config = Network.ServerConfig{
     .recv_mode = .passive,
     .callback = echo_server,
     .user_data = null,
@@ -130,21 +145,24 @@ export fn main() noreturn {
     init_SysTick(CPU_CLOCK / 1000); //1ms per tick
     init_UART();
 
-    var my_drive = EspAT(.{ .TX_event_pool = 30 }).init(TX_callback, rx_callback, null);
+    var net_dev = Network.Device(5).init();
+    var WiFi_dev = WiFi.Device.init();
+    var my_drive = StdRunner.Runner(.{ .TX_event_pool = 30 }).init(TX_callback, rx_callback, null);
     defer my_drive.deinit_driver();
 
-    my_drive.set_WiFi_event_handler(WiFi_callback, null);
-    my_drive.set_response_event_handler(result_callback, null);
-
     my_drive.init_driver() catch error_h();
-    my_drive.set_WiFi_mode(Driver.WiFiDriverMode.AP_STA) catch error_h();
-    my_drive.set_network_mode(Driver.NetworkDriveMode.SERVER_CLIENT) catch error_h();
-    my_drive.WiFi_config_AP(AP_config) catch error_h();
-    my_drive.WiFi_connect_AP(STA_config) catch error_h();
+    net_dev.link_device(&my_drive);
+    WiFi_dev.link_device(&my_drive);
 
-    const id_udp = my_drive.bind(udp_callback, null) catch error_h();
-    my_drive.connect(id_udp, config_udp) catch error_h();
-    my_drive.create_server(server_config) catch error_h();
+    WiFi_dev.set_WiFi_event_handler(WiFi_callback, null);
+    WiFi_dev.set_WiFi_mode(.AP_STA) catch error_h();
+    net_dev.set_network_mode(.SERVER_CLIENT) catch error_h();
+    WiFi_dev.WiFi_config_AP(AP_config) catch error_h();
+    WiFi_dev.WiFi_connect_AP(STA_config) catch error_h();
+
+    const id_udp = net_dev.bind(udp_callback, null) catch error_h();
+    net_dev.connect(id_udp, config_udp) catch error_h();
+    net_dev.create_server(server_config) catch error_h();
 
     cortex_m3.enableInterrupts();
     while (true) {

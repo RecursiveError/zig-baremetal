@@ -11,7 +11,7 @@ pub fn build(b: *std.Build) void {
     const executable_name = "bootloader";
 
     const optimize = b.standardOptimizeOption(.{});
-    const blinky_exe = b.addExecutable(.{
+    const bootloader = b.addExecutable(.{
         .name = executable_name ++ ".elf",
         .target = target,
         .optimize = optimize,
@@ -20,6 +20,7 @@ pub fn build(b: *std.Build) void {
         .single_threaded = true,
         .root_source_file = b.path("src/main.zig"),
     });
+    bootloader.entry = .disabled;
 
     const startup = b.addObject(
         .{
@@ -31,27 +32,29 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/startup.zig"),
         },
     );
-    blinky_exe.setLinkerScriptPath(b.path("stmf103.ld"));
-    blinky_exe.link_gc_sections = true;
-    blinky_exe.link_data_sections = true;
-    blinky_exe.link_function_sections = true;
+    startup.entry = .disabled;
 
-    blinky_exe.addObject(startup);
+    bootloader.setLinkerScriptPath(b.path("stmf103.ld"));
+    bootloader.link_gc_sections = true;
+    bootloader.link_data_sections = true;
+    bootloader.link_function_sections = true;
+
+    bootloader.addObject(startup);
 
     // Produce .bin file from .elf
-    const bin = b.addObjCopy(blinky_exe.getEmittedBin(), .{
+    const bin = b.addObjCopy(bootloader.getEmittedBin(), .{
         .format = .bin,
     });
-    bin.step.dependOn(&blinky_exe.step);
+    bin.step.dependOn(&bootloader.step);
     const copy_bin = b.addInstallBinFile(bin.getOutput(), executable_name ++ ".bin");
     b.default_step.dependOn(&copy_bin.step);
 
     // Produce .hex file from .elf
-    const hex = b.addObjCopy(blinky_exe.getEmittedBin(), .{
+    const hex = b.addObjCopy(bootloader.getEmittedBin(), .{
         .format = .hex,
     });
-    hex.step.dependOn(&blinky_exe.step);
+    hex.step.dependOn(&bootloader.step);
     const copy_hex = b.addInstallBinFile(hex.getOutput(), executable_name ++ ".hex");
     b.default_step.dependOn(&copy_hex.step);
-    b.installArtifact(blinky_exe);
+    b.installArtifact(bootloader);
 }

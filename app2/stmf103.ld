@@ -3,8 +3,6 @@ MEMORY
     FLASH (rx) : ORIGIN = 0x08005000, LENGTH = 60K /*adjust for correct amount of memory*/
     RAM (rwx) : ORIGIN = 0x20000000, LENGTH = 20K
 }
-/*This code already defines _start as reset handler*/
-ENTRY(resetHandler)
 
 /* Set stack start to the end of RAM (stack grows from high memory addresses -> low) */
 PROVIDE(__stack = ORIGIN(RAM) + LENGTH(RAM));

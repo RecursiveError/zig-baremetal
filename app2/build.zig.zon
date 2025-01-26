@@ -3,8 +3,12 @@
     .version = "0.0.0",
     .dependencies = .{
         .ESPAT = .{
-            .url = "git+https://github.com/RecursiveError/ESPAT#19c0b0151b3e3b4805184c41be6a6d5fdc520428",
-            .hash = "12207f9a2cf304af575d12f64070b42c7d9b5b64150d172b696e16a28a837305ebea",
+            .url = "../../ESPAT",
+            .hash = "12203b1eac43192cbae9a74b94546d119fff84ab21d6a7720358ee310227e81fdd50",
+        },
+        .picohttpparser = .{
+            .url = "git+https://github.com/allyourcodebase/picohttpparser?ref=master#cd4960d28b2745ae17500703627ff0b7ec71c4b3",
+            .hash = "12201f65ae58cabcbe3e45634f8cd083fb7b63d61fc648f40d199527163710b54252",
         },
     },
     .paths = .{

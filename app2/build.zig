@@ -6,12 +6,13 @@ pub fn build(b: *std.Build) void {
         .os_tag = .freestanding,
         .abi = .none,
         .cpu_model = std.zig.CrossTarget.CpuModel{ .explicit = &std.Target.arm.cpu.cortex_m3 },
-        //.cpu_features_add = std.Target.arm.featureSet(&[_]std.Target.arm.Feature{std.Target.arm.Feature.v7m}),
+        .cpu_features_add = std.Target.arm.featureSet(&[_]std.Target.arm.Feature{std.Target.arm.Feature.v7m}),
     });
-    const ESPAT = b.dependency("ESPAT", .{}).module("ESPAT");
-    const executable_name = "ESPAT";
 
     const optimize = b.standardOptimizeOption(.{});
+
+    const ESPAT = b.dependency("ESPAT", .{}).module("ESPAT");
+    const executable_name = "ESPAT";
     const ESPAT_firmware = b.addExecutable(.{
         .name = executable_name ++ ".elf",
         .target = target,

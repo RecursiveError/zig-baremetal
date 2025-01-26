@@ -3,33 +3,27 @@ const disableInterrupts = cortexm3.disableInterrupts;
 const enableInterrupts = cortexm3.enableInterrupts;
 
 extern fn main() noreturn;
-extern fn SystemTick_IRQ() callconv(.C) void;
+extern fn SystemTick_IRQ() callconv(.Naked) void;
+pub fn default_handler() callconv(.Naked) void {
+    while (true) {}
+}
 
 extern var _sbss: u8;
 extern var _ebss: u8;
-extern var _data: u8;
+extern var _sdata: u8;
 extern var _edata: u8;
-extern const _data_loadaddr: u8;
+extern const _sidata: u8;
 extern var __stack: anyopaque;
-
-pub fn default_handler() callconv(.C) void {}
-
-pub fn resetHandler() callconv(.C) noreturn {
-    const startup_locations = struct {
-        extern var _sbss: u8;
-        extern var _ebss: u8;
-        extern var _sdata: u8;
-        extern var _edata: u8;
-        extern const _sidata: u8;
-    };
+pub fn resetHandler() callconv(.Naked) noreturn {
 
     // Disable interrupts during initialization, although they should start disabled anyways
     disableInterrupts();
+    @setRuntimeSafety(false);
 
     // fill .bss with zeroes
     {
-        const bss_start: [*]u8 = @ptrCast(&startup_locations._sbss);
-        const bss_end: [*]u8 = @ptrCast(&startup_locations._ebss);
+        const bss_start: [*]u8 = @ptrCast(&_sbss);
+        const bss_end: [*]u8 = @ptrCast(&_ebss);
         const bss_len = @intFromPtr(bss_end) - @intFromPtr(bss_start);
 
         @memset(bss_start[0..bss_len], 0);
@@ -37,23 +31,25 @@ pub fn resetHandler() callconv(.C) noreturn {
 
     // load .data from flash
     {
-        const data_start: [*]u8 = @ptrCast(&startup_locations._sdata);
-        const data_end: [*]u8 = @ptrCast(&startup_locations._edata);
+        const data_start: [*]u8 = @ptrCast(&_sdata);
+        const data_end: [*]u8 = @ptrCast(&_edata);
         const data_len = @intFromPtr(data_end) - @intFromPtr(data_start);
-        const data_src: [*]const u8 = @ptrCast(&startup_locations._sidata);
+        const data_src: [*]const u8 = @ptrCast(&_sidata);
 
         @memcpy(data_start[0..data_len], data_src[0..data_len]);
     }
 
     // Re-enable interrupts before calling main()
+
+    @setRuntimeSafety(true);
     enableInterrupts();
 
-    main();
+    asm volatile ("B main");
     while (true) {}
 }
 
 pub const VectorTable = extern struct {
-    const Handler = *const fn () callconv(.C) void;
+    const Handler = *const fn () callconv(.Naked) void;
     const unhandled = default_handler;
 
     initial_stack_pointer: *anyopaque,
@@ -121,9 +117,5 @@ comptime {
         .name = "vector_table",
         .section = ".isr_vector",
         .linkage = .strong,
-    });
-
-    @export(resetHandler, .{
-        .name = "_start",
     });
 }
